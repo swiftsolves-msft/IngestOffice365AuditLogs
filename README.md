@@ -63,7 +63,7 @@ The Azure AD app is later required to use it as service principle for the [Azure
 14. Copy the **client Id** from the application properties and paste it somewhere.
 15. Also copy the **tenant Id** from the AAD directory properties blade.
 
-For the deployment of [Azure Funtion App](https://github.com/sreedharande/IngestOffice365AuditLogs), make a note of following settings: 
+For the deployment of [Azure Funtion App](https://github.com/swiftsolves-msft/IngestOffice365AuditLogs), make a note of following settings: 
 - The Azure AD Application ID 
 - The Azure AD Application Secret 
 - The Tenant ID 
