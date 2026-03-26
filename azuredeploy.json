@@ -2,36 +2,42 @@
     "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
     "contentVersion": "1.0.0.0",
     "parameters": {
-		"FunctionName": {
-			"defaultValue": "O365Data",
-			"type": "string",
-			"metadata": {
-				"description": "Specifies the name of the Function App."
-			}
-		},
+        "FunctionName": {
+            "defaultValue": "O365Data",
+            "type": "string",
+            "metadata": {
+                "description": "Specifies the name of the Function App."
+            }
+        },
+        "workspaceName": {
+            "type": "string",
+            "metadata": {
+                "description": "Name of the existing Log Analytics workspace where the O365_CL table will be created."
+            }
+        },
         "clientID": {
-            "type": "string",            
-			"metadata": {
-				"description": "AAD Application Client ID"
-			}
+            "type": "string",
+            "metadata": {
+                "description": "AAD Application Client ID"
+            }
         },
         "clientSecret": {
             "type": "string",
-			"metadata": {
-				"description": "AAD Application Client Secret"
-			}            
+            "metadata": {
+                "description": "AAD Application Client Secret"
+            }
         },
         "domain": {
             "type": "string",
-			"metadata": {
-				"description": "<domain>.onmicrosoft.com"
-			}            
+            "metadata": {
+                "description": "<domain>.onmicrosoft.com"
+            }
         },
         "publisher": {
             "type": "string",
             "metadata": {
-				"description": "GUID"
-			}
+                "description": "GUID"
+            }
         },
         "timeDiff": {
             "type": "string",
@@ -39,54 +45,44 @@
         },
         "contentTypes": {
             "type": "string",
-			"defaultValue": "Audit.General,DLP.ALL",
-			"metadata": {
-				"description": "Ex:Audit.General,DLP.ALL"
-			}            
+            "defaultValue": "Audit.General,DLP.ALL",
+            "metadata": {
+                "description": "Ex:Audit.General,DLP.ALL"
+            }
         },
         "recordTypes": {
             "type": "string",
             "metadata": {
-				"description": "RecordTypes 28,41,47,40"
-			}
+                "description": "RecordTypes 28,41,47,40"
+            }
         },
-        "workspaceID": {
+        "customLogName": {
             "type": "string",
+            "defaultValue": "O365",
             "metadata": {
-				"description": "Specifies the Log Analytics Workspace Id."
-			}
+                "description": "Base custom log name (table will be O365_CL)"
+            }
         },
-        "workspaceKey": {
-            "type": "securestring",      
-			"metadata": {
-				"description": "Specifies the Log Analytics Workspace Key."
-			}
-        },
-		"customLogName": {
+        "FunctionSchedule": {
             "type": "string",
+            "defaultValue": "0 */5 * * * *",
             "metadata": {
-				"description": "Specifies the Log Analytics Log name."
-			}
-        },
-		"FunctionSchedule": {
-			"type": "string",
-			"defaultValue": "0 */5 * * * *",
-			"metadata": {
-				"description": "For a `TimerTrigger` to work, you provide a schedule in the form of a [cron expression](https://en.wikipedia.org/wiki/Cron#CRON_expression)(See the link for full details). A cron expression is a string with 6 separate expressions which represent a given schedule via patterns. The pattern we use to represent every 1 hour is `0 0 * * * *`. This, in plain text, means: When seconds is equal to 0, minutes is divisible by 5, for any hour, day of the month, month, day of the week, or year"
-		}
-    }
+                "description": "Cron expression for TimerTrigger"
+            }
+        }
     },
-    "variables": {            
-			"FunctionName": "[concat(toLower(parameters('FunctionName')), uniqueString(resourceGroup().id))]",            
-			"StorageAccountName":"[concat(substring(variables('FunctionName'), 0, 20), 'sa')]",    
-			"KeyVaultName": "[concat(substring(variables('FunctionName'), 0, 20), 'kv')]",
-			"AzureAADClientSecret": "AzureAADClientSecret",    
-			"LogAnalyticsWorkspaceKey": "LogAnalyticsWorkspaceKey",
-			"StorageSuffix":"[environment().suffixes.storage]",
-			"HostingPlanName":"[concat('ASP-', variables('FunctionName'))]",																	   
-			"LogAnaltyicsUri":"[replace(environment().portal, 'https://portal', concat('https://', toLower(parameters('workspaceId')), '.ods.opinsights'))]",
-			"OfficeLoginUri":"[replace(environment().portal, 'https://portal.azure', 'https://manage.office')]",
-			"AzureAADLoginUri":"[replace(environment().portal, 'https://portal.azure', 'https://login.microsoftonline')]"
+    "variables": {
+        "FunctionName": "[concat(toLower(parameters('FunctionName')), uniqueString(resourceGroup().id))]",
+        "StorageAccountName": "[concat(substring(variables('FunctionName'), 0, 20), 'sa')]",
+        "KeyVaultName": "[concat(substring(variables('FunctionName'), 0, 20), 'kv')]",
+        "AzureAADClientSecret": "AzureAADClientSecret",
+        "StorageSuffix": "[environment().suffixes.storage]",
+        "HostingPlanName": "[concat('ASP-', variables('FunctionName'))]",
+        "DceName": "O365DCE",
+        "DcrName": "O365DCR",
+        "TableName": "O365_CL",
+        "OfficeLoginUri": "[replace(environment().portal, 'https://portal.azure', 'https://manage.office')]",
+        "AzureAADLoginUri": "[replace(environment().portal, 'https://portal.azure', 'https://login.microsoftonline')]"
     },
     "resources": [
         {
@@ -101,99 +97,54 @@
             }
         },
         {
-		  "type": "Microsoft.KeyVault/vaults",
-		  "apiVersion": "2016-10-01",
-		  "name": "[variables('KeyVaultName')]",
-		  "location": "[resourceGroup().location]",
-		  "dependsOn": [
-			"[resourceId('Microsoft.Web/sites', variables('FunctionName'))]"
-		  ],
-		  "properties": {
-			"sku": {
-			  "family": "A",
-			  "name": "Standard"
-			},
-			"tenantId": "[subscription().tenantId]",
-			"accessPolicies": [
-			  {
-				"tenantId": "[subscription().tenantId]",
-				"objectId": "[reference(resourceId('Microsoft.Web/sites', variables('FunctionName')),'2019-08-01', 'full').identity.principalId]",
-				"permissions": {
-				  "secrets": [ "get",
-							   "list"
-				  ]
-				}
-			  }
-			],
-			"enabledForDeployment": false,
-			"enabledForDiskEncryption": false,
-			"enabledForTemplateDeployment": true,
-			"enableSoftDelete": true
-		  },
-		  "resources": [
-			{
-			  "type": "secrets",
-			  "apiVersion": "2016-10-01",
-			  "name": "[variables('AzureAADClientSecret')]",
-			  "dependsOn": [
-				"[resourceId('Microsoft.KeyVault/vaults/', variables('KeyVaultName'))]"
-			  ],
-			  "properties": {
-				"value": "[parameters('clientSecret')]",
-				"contentType": "string",
-				"attributes": {
-				  "enabled": true
-				}
-			  }
-			},        
-			{
-			  "type": "secrets",
-			  "apiVersion": "2016-10-01",
-			  "name": "[variables('LogAnalyticsWorkspaceKey')]",
-			  "dependsOn": [
-				"[resourceId('Microsoft.KeyVault/vaults/', variables('KeyVaultName'))]"
-			  ],
-			  "properties": {
-				"value": "[parameters('workspaceKey')]",
-				"contentType": "string",
-				"attributes": {
-				  "enabled": true
-				}
-			  }
-			}
-		  ]
-		},
+            "type": "Microsoft.KeyVault/vaults",
+            "apiVersion": "2016-10-01",
+            "name": "[variables('KeyVaultName')]",
+            "location": "[resourceGroup().location]",
+            "dependsOn": [
+                "[resourceId('Microsoft.Web/sites', variables('FunctionName'))]"
+            ],
+            "properties": {
+                "sku": { "family": "A", "name": "Standard" },
+                "tenantId": "[subscription().tenantId]",
+                "accessPolicies": [
+                    {
+                        "tenantId": "[subscription().tenantId]",
+                        "objectId": "[reference(resourceId('Microsoft.Web/sites', variables('FunctionName')),'2019-08-01', 'full').identity.principalId]",
+                        "permissions": { "secrets": ["get", "list"] }
+                    }
+                ],
+                "enabledForDeployment": false,
+                "enabledForDiskEncryption": false,
+                "enabledForTemplateDeployment": true,
+                "enableSoftDelete": true
+            },
+            "resources": [
+                {
+                    "type": "secrets",
+                    "apiVersion": "2016-10-01",
+                    "name": "[variables('AzureAADClientSecret')]",
+                    "dependsOn": [ "[resourceId('Microsoft.KeyVault/vaults/', variables('KeyVaultName'))]" ],
+                    "properties": {
+                        "value": "[parameters('clientSecret')]",
+                        "contentType": "string",
+                        "attributes": { "enabled": true }
+                    }
+                }
+            ]
+        },
         {
             "type": "Microsoft.Storage/storageAccounts",
             "apiVersion": "2019-06-01",
             "name": "[variables('StorageAccountName')]",
             "location": "[resourceGroup().location]",
-            "sku": {
-                "name": "Standard_LRS",
-                "tier": "Standard"
-            },
+            "sku": { "name": "Standard_LRS", "tier": "Standard" },
             "kind": "StorageV2",
             "properties": {
-                "networkAcls": {
-                    "bypass": "AzureServices",
-                    "virtualNetworkRules": [
-                    ],
-                    "ipRules": [
-                    ],
-                    "defaultAction": "Allow"
-                },
+                "networkAcls": { "bypass": "AzureServices", "defaultAction": "Allow" },
                 "supportsHttpsTrafficOnly": true,
                 "encryption": {
-                    "services": {
-                        "file": {
-                            "keyType": "Account",
-                            "enabled": true
-                        },
-                        "blob": {
-                            "keyType": "Account",
-                            "enabled": true
-                        }
-                    },
+                    "services": { "file": { "enabled": true }, "blob": { "enabled": true } },
                     "keySource": "Microsoft.Storage"
                 }
             }
@@ -204,56 +155,135 @@
             "type": "Microsoft.Web/serverfarms",
             "location": "[resourceGroup().location]",
             "kind": "elastic",
-            "tags": {},
-            "dependsOn": [],
             "properties": {
                 "targetWorkerCount": "2",
-                "targetWorkerSizeId": "3",                
+                "targetWorkerSizeId": "3",
                 "reserved": true,
                 "maximumElasticWorkerCount": "20"
             },
-            "sku": {
-                "tier": "ElasticPremium",
-                "name": "EP1"
-            }
+            "sku": { "tier": "ElasticPremium", "name": "EP1" }
         },
         {
             "type": "Microsoft.Storage/storageAccounts/blobServices",
             "apiVersion": "2019-06-01",
             "name": "[concat(variables('StorageAccountName'), '/default')]",
-            "dependsOn": [
-                "[resourceId('Microsoft.Storage/storageAccounts', variables('StorageAccountName'))]"
-            ],
-            "sku": {
-                "name": "Standard_LRS",
-                "tier": "Standard"
-            },
-            "properties": {
-                "cors": {
-                    "corsRules": [
-                    ]
-                },
-                "deleteRetentionPolicy": {
-                    "enabled": false
-                }
-            }
+            "dependsOn": [ "[resourceId('Microsoft.Storage/storageAccounts', variables('StorageAccountName'))]" ],
+            "sku": { "name": "Standard_LRS", "tier": "Standard" },
+            "properties": { "cors": { "corsRules": [] }, "deleteRetentionPolicy": { "enabled": false } }
         },
         {
             "type": "Microsoft.Storage/storageAccounts/fileServices",
             "apiVersion": "2019-06-01",
             "name": "[concat(variables('StorageAccountName'), '/default')]",
-            "dependsOn": [
-                "[resourceId('Microsoft.Storage/storageAccounts', variables('StorageAccountName'))]"
-            ],
-            "sku": {
-                "name": "Standard_LRS",
-                "tier": "Standard"
-            },
+            "dependsOn": [ "[resourceId('Microsoft.Storage/storageAccounts', variables('StorageAccountName'))]" ],
+            "sku": { "name": "Standard_LRS", "tier": "Standard" },
+            "properties": { "cors": { "corsRules": [] } }
+        },
+        // Data Collection Endpoint (DCE)
+        {
+            "type": "Microsoft.Insights/dataCollectionEndpoints",
+            "apiVersion": "2024-03-11",
+            "name": "[variables('DceName')]",
+            "location": "[resourceGroup().location]",
             "properties": {
-                "cors": {
-                    "corsRules": [
+                "networkAcls": {
+                    "publicNetworkAccess": "Enabled"
+                }
+            }
+        },
+        // Custom Table O365_CL with full schema from your CSV
+        {
+            "type": "Microsoft.OperationalInsights/workspaces/tables",
+            "apiVersion": "2023-09-01",
+            "name": "[concat(parameters('workspaceName'), '/', variables('TableName'))]",
+            "properties": {
+                "plan": "Analytics",   // Change to "Auxiliary" for Data Lake-only (Sentinel cost optimization)
+                "schema": {
+                    "name": "[variables('TableName')]",
+                    "columns": [
+                        { "name": "TenantId", "type": "string" },
+                        { "name": "SourceSystem", "type": "string" },
+                        { "name": "MG", "type": "string" },
+                        { "name": "ManagementGroupName", "type": "string" },
+                        { "name": "TimeGenerated", "type": "datetime" },
+                        { "name": "Computer", "type": "string" },
+                        { "name": "RawData", "type": "string" },
+                        { "name": "ResultStatus_s", "type": "string" },
+                        { "name": "DeviceInformation_s", "type": "string" },
+                        { "name": "ChatName_s", "type": "string" },
+                        { "name": "ChannelGuid_s", "type": "string" },
+                        { "name": "TeamGuid_s", "type": "string" },
+                        { "name": "ObjectId_s", "type": "string" },
+                        { "name": "ChannelName_s", "type": "string" },
+                        { "name": "TeamName_s", "type": "string" },
+                        { "name": "Members_s", "type": "string" },
+                        { "name": "UserTenantId_g", "type": "string" },
+                        { "name": "MessageVisibilityTime_t", "type": "datetime" },
+                        { "name": "Version_d", "type": "real" },
+                        { "name": "UserType_d", "type": "real" },
+                        { "name": "Operation_s", "type": "string" },
+                        { "name": "ClientIP_s", "type": "string" },
+                        { "name": "ChatThreadId_s", "type": "string" },
+                        { "name": "AppAccessContext_IssuedAtTime_t", "type": "datetime" },
+                        { "name": "AppAccessContext_UniqueTokenId_s", "type": "string" },
+                        { "name": "Id_g", "type": "string" },
+                        { "name": "UserId_s", "type": "string" },
+                        { "name": "MessageId_s", "type": "string" },
+                        { "name": "ItemName_s", "type": "string" },
+                        { "name": "CreationTime_t", "type": "datetime" },
+                        { "name": "UserKey_g", "type": "string" },
+                        { "name": "ParticipantInfo_HasForeignTenantUsers_b", "type": "bool" },
+                        { "name": "ParticipantInfo_HasGuestUsers_b", "type": "bool" },
+                        { "name": "ParticipantInfo_HasOtherGuestUsers_b", "type": "bool" },
+                        { "name": "ParticipantInfo_HasUnauthenticatedUsers_b", "type": "bool" },
+                        { "name": "ParticipantInfo_ParticipatingTenantIds_s", "type": "string" },
+                        { "name": "RecordType_d", "type": "real" },
+                        { "name": "OrganizationId_g", "type": "string" },
+                        { "name": "Workload_s", "type": "string" },
+                        { "name": "ExtraProperties_s", "type": "string" },
+                        { "name": "CommunicationType_s", "type": "string" },
+                        { "name": "MessageVersion_s", "type": "string" },
+                        { "name": "Type", "type": "string" },
+                        { "name": "_ResourceId", "type": "string" }
                     ]
                 }
+            }
+        },
+        // Data Collection Rule (DCR)
+        {
+            "type": "Microsoft.Insights/dataCollectionRules",
+            "apiVersion": "2024-03-11",
+            "name": "[variables('DcrName')]",
+            "location": "[resourceGroup().location]",
+            "dependsOn": [
+                "[resourceId('Microsoft.Insights/dataCollectionEndpoints', variables('DceName'))]",
+                "[resourceId('Microsoft.OperationalInsights/workspaces/tables', parameters('workspaceName'), variables('TableName'))]"
+            ],
+            "properties": {
+                "dataCollectionEndpointId": "[resourceId('Microsoft.Insights/dataCollectionEndpoints', variables('DceName'))]",
+                "streamDeclarations": {
+                    "Custom-O365": {
+                        "columns": [
+                            { "name": "TimeGenerated", "type": "datetime" },
+                            { "name": "RawData", "type": "string" }
+                        ]
+                    }
+                },
+                "dataSources": {},
+                "destinations": {
+                    "logAnalytics": [
+                        {
+                            "workspaceResourceId": "[resourceId('Microsoft.OperationalInsights/workspaces', parameters('workspaceName'))]",
+                            "name": "O365Destination"
+                        }
+                    ]
+                },
+                "dataFlows": [
+                    {
+                        "streams": [ "Custom-O365" ],
+                        "destinations": [ "O365Destination" ]
+                    }
+                ]
             }
         },
         {
@@ -263,23 +293,20 @@
             "location": "[resourceGroup().location]",
             "dependsOn": [
                 "[resourceId('Microsoft.Storage/storageAccounts', variables('StorageAccountName'))]",
-                "[resourceId('Microsoft.Web/serverfarms', variables('HostingPlanName'))]",                
-                "[resourceId('Microsoft.Insights/components', variables('FunctionName'))]"
+                "[resourceId('Microsoft.Web/serverfarms', variables('HostingPlanName'))]",
+                "[resourceId('Microsoft.Insights/components', variables('FunctionName'))]",
+                "[resourceId('Microsoft.Insights/dataCollectionRules', variables('DcrName'))]"
             ],
             "kind": "functionapp",
-            "identity": {
-                "type": "SystemAssigned"
-            },
+            "identity": { "type": "SystemAssigned" },
             "properties": {
-                "name": "[variables('FunctionName')]",                
+                "name": "[variables('FunctionName')]",
                 "httpsOnly": true,
                 "clientAffinityEnabled": true,
-				"alwaysOn": true,
-				"reserved": true,
-				"serverFarmId": "[concat('/subscriptions/', subscription().subscriptionId,'/resourcegroups/', resourceGroup().name, '/providers/Microsoft.Web/serverfarms/', variables('HostingPlanName'))]",				 
-				"siteConfig": {
-					"powerShellVersion": "~7"
-				}		 
+                "alwaysOn": true,
+                "reserved": true,
+                "serverFarmId": "[concat('/subscriptions/', subscription().subscriptionId,'/resourcegroups/', resourceGroup().name, '/providers/Microsoft.Web/serverfarms/', variables('HostingPlanName'))]",
+                "siteConfig": { "powerShellVersion": "~7" }
             },
             "resources": [
                 {
@@ -288,19 +315,18 @@
                     "name": "appsettings",
                     "dependsOn": [
                         "[concat('Microsoft.Web/sites/', variables('FunctionName'))]",
-						"[resourceId('Microsoft.KeyVault/vaults/', variables('KeyVaultName'))]",
-						"[resourceId('Microsoft.KeyVault/vaults/secrets', variables('KeyVaultName'), variables('AzureAADClientSecret'))]",            
-						"[resourceId('Microsoft.KeyVault/vaults/secrets', variables('KeyVaultName'), variables('LogAnalyticsWorkspaceKey'))]"
+                        "[resourceId('Microsoft.KeyVault/vaults/', variables('KeyVaultName'))]",
+                        "[resourceId('Microsoft.KeyVault/vaults/secrets', variables('KeyVaultName'), variables('AzureAADClientSecret'))]"
                     ],
                     "properties": {
                         "FUNCTIONS_EXTENSION_VERSION": "~4",
                         "FUNCTIONS_WORKER_RUNTIME": "powershell",
                         "APPINSIGHTS_INSTRUMENTATIONKEY": "[reference(resourceId('Microsoft.insights/components', variables('FunctionName')), '2015-05-01').InstrumentationKey]",
                         "APPLICATIONINSIGHTS_CONNECTION_STRING": "[reference(resourceId('microsoft.insights/components', variables('FunctionName')), '2015-05-01').ConnectionString]",
-                        "AzureWebJobsStorage": "[concat('DefaultEndpointsProtocol=https;AccountName=', toLower(variables('StorageAccountName')),';AccountKey=',listKeys(resourceId('Microsoft.Storage/storageAccounts', variables('StorageAccountName')), '2019-06-01').keys[0].value, ';EndpointSuffix=',toLower(variables('StorageSuffix')))]",						
+                        "AzureWebJobsStorage": "[concat('DefaultEndpointsProtocol=https;AccountName=', toLower(variables('StorageAccountName')),';AccountKey=',listKeys(resourceId('Microsoft.Storage/storageAccounts', variables('StorageAccountName')), '2019-06-01').keys[0].value, ';EndpointSuffix=',toLower(variables('StorageSuffix')))]",
                         "WEBSITE_CONTENTAZUREFILECONNECTIONSTRING": "[concat('DefaultEndpointsProtocol=https;AccountName=', toLower(variables('StorageAccountName')),';AccountKey=', listKeys(resourceId('Microsoft.Storage/storageAccounts', variables('StorageAccountName')), '2019-06-01').keys[0].value, ';EndpointSuffix=',toLower(variables('StorageSuffix')))]",
                         "WEBSITE_CONTENTSHARE": "[variables('FunctionName')]",
-                        "clientID": "[parameters('clientSecret')]",
+                        "clientID": "[parameters('clientID')]",
                         "clientSecret": "[concat('@Microsoft.KeyVault(SecretUri=', reference(variables('AzureAADClientSecret')).secretUriWithVersion, ')')]",
                         "domain": "[parameters('domain')]",
                         "tenantGuid": "[subscription().tenantId]",
@@ -308,14 +334,12 @@
                         "timeDiff": "[parameters('timeDiff')]",
                         "contentTypes": "[parameters('contentTypes')]",
                         "recordTypes": "[parameters('recordTypes')]",
-                        "workspaceID": "[parameters('workspaceID')]",
-                        "workspaceKey": "[concat('@Microsoft.KeyVault(SecretUri=', reference(variables('LogAnalyticsWorkspaceKey')).secretUriWithVersion, ')')]",
-                        "WEBSITE_RUN_FROM_PACKAGE": "https://github.com/sreedharande/IngestOffice365AuditLogs/blob/main/IngestOffice365DataV2.zip?raw=true",
                         "customLogName": "[parameters('customLogName')]",
-						"LAUri":"[variables('LogAnaltyicsUri')]",
-						"AzureAADLoginUri":"[variables('AzureAADLoginUri')]",
-						"OfficeLoginUri":"[variables('OfficeLoginUri')]",
-						"Schedule":"[parameters('FunctionSchedule')]"
+                        "AzureAADLoginUri": "[variables('AzureAADLoginUri')]",
+                        "OfficeLoginUri": "[variables('OfficeLoginUri')]",
+                        "Schedule": "[parameters('FunctionSchedule')]",
+                        "dceEndpoint": "[reference(resourceId('Microsoft.Insights/dataCollectionEndpoints', variables('DceName'))).logsIngestion.endpoint]",
+                        "dcrImmutableId": "[reference(resourceId('Microsoft.Insights/dataCollectionRules', variables('DcrName'))).immutableId]"
                     }
                 }
             ]
@@ -324,37 +348,22 @@
             "type": "Microsoft.Storage/storageAccounts/blobServices/containers",
             "apiVersion": "2019-06-01",
             "name": "[concat(variables('StorageAccountName'), '/default/azure-webjobs-hosts')]",
-            "dependsOn": [
-                "[resourceId('Microsoft.Storage/storageAccounts/blobServices', variables('StorageAccountName'), 'default')]",
-                "[resourceId('Microsoft.Storage/storageAccounts', variables('StorageAccountName'))]"
-            ],
-            "properties": {
-                "publicAccess": "None"
-            }
+            "dependsOn": [ "[resourceId('Microsoft.Storage/storageAccounts/blobServices', variables('StorageAccountName'), 'default')]" ],
+            "properties": { "publicAccess": "None" }
         },
         {
             "type": "Microsoft.Storage/storageAccounts/blobServices/containers",
             "apiVersion": "2019-06-01",
             "name": "[concat(variables('StorageAccountName'), '/default/azure-webjobs-secrets')]",
-            "dependsOn": [
-                "[resourceId('Microsoft.Storage/storageAccounts/blobServices', variables('StorageAccountName'), 'default')]",
-                "[resourceId('Microsoft.Storage/storageAccounts', variables('StorageAccountName'))]"
-            ],
-            "properties": {
-                "publicAccess": "None"
-            }
+            "dependsOn": [ "[resourceId('Microsoft.Storage/storageAccounts/blobServices', variables('StorageAccountName'), 'default')]" ],
+            "properties": { "publicAccess": "None" }
         },
         {
             "type": "Microsoft.Storage/storageAccounts/fileServices/shares",
             "apiVersion": "2019-06-01",
             "name": "[concat(variables('StorageAccountName'), '/default/', tolower(variables('FunctionName')))]",
-            "dependsOn": [
-                "[resourceId('Microsoft.Storage/storageAccounts/fileServices', variables('StorageAccountName'), 'default')]",
-                "[resourceId('Microsoft.Storage/storageAccounts', variables('StorageAccountName'))]"
-            ],
-            "properties": {
-                "shareQuota": 5120
-            }
-        }       
+            "dependsOn": [ "[resourceId('Microsoft.Storage/storageAccounts/fileServices', variables('StorageAccountName'), 'default')]" ],
+            "properties": { "shareQuota": 5120 }
+        }
     ]
 }
