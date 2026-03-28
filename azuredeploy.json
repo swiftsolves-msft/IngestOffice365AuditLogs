@@ -22,7 +22,7 @@
             }
         },
         "clientSecret": {
-            "type": "string",
+            "type": "SecureString",
             "metadata": {
                 "description": "AAD Application Client Secret"
             }
@@ -242,9 +242,7 @@
                         { "name": "Workload_s", "type": "string" },
                         { "name": "ExtraProperties_s", "type": "string" },
                         { "name": "CommunicationType_s", "type": "string" },
-                        { "name": "MessageVersion_s", "type": "string" },
-                        { "name": "Type", "type": "string" },
-                        { "name": "_ResourceId", "type": "string" }
+                        { "name": "MessageVersion_s", "type": "string" }
                     ]
                 }
             }
@@ -281,7 +279,8 @@
                 "dataFlows": [
                     {
                         "streams": [ "Custom-O365" ],
-                        "destinations": [ "O365Destination" ]
+                        "destinations": [ "O365Destination" ],
+                        "outputStream": "Custom-O365_CL"
                     }
                 ]
             }
@@ -323,9 +322,6 @@
                         "FUNCTIONS_WORKER_RUNTIME": "powershell",
                         "APPINSIGHTS_INSTRUMENTATIONKEY": "[reference(resourceId('Microsoft.insights/components', variables('FunctionName')), '2015-05-01').InstrumentationKey]",
                         "APPLICATIONINSIGHTS_CONNECTION_STRING": "[reference(resourceId('microsoft.insights/components', variables('FunctionName')), '2015-05-01').ConnectionString]",
-                        "AzureWebJobsStorage": "[concat('DefaultEndpointsProtocol=https;AccountName=', toLower(variables('StorageAccountName')),';AccountKey=',listKeys(resourceId('Microsoft.Storage/storageAccounts', variables('StorageAccountName')), '2019-06-01').keys[0].value, ';EndpointSuffix=',toLower(variables('StorageSuffix')))]",
-                        "WEBSITE_CONTENTAZUREFILECONNECTIONSTRING": "[concat('DefaultEndpointsProtocol=https;AccountName=', toLower(variables('StorageAccountName')),';AccountKey=', listKeys(resourceId('Microsoft.Storage/storageAccounts', variables('StorageAccountName')), '2019-06-01').keys[0].value, ';EndpointSuffix=',toLower(variables('StorageSuffix')))]",
-                        "WEBSITE_CONTENTSHARE": "[variables('FunctionName')]",
                         "clientID": "[parameters('clientID')]",
                         "clientSecret": "[concat('@Microsoft.KeyVault(SecretUri=', reference(variables('AzureAADClientSecret')).secretUriWithVersion, ')')]",
                         "domain": "[parameters('domain')]",
