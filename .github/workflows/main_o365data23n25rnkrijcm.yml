@@ -10,11 +10,11 @@ on:
   workflow_dispatch:
 
 env:
-  AZURE_FUNCTIONAPP_PACKAGE_PATH: './IngestOffice365DataV2' # set this to the path to your web app project, defaults to the repository root
+  AZURE_FUNCTIONAPP_PACKAGE_PATH: '.' # set this to the path to your web app project, defaults to the repository root
 
 jobs:
   deploy:
-    runs-on: ubuntu-latest
+    runs-on: windows-latest
     permissions:
       id-token: write #This is required for requesting the JWT
       contents: read #This is required for actions/checkout
@@ -26,9 +26,9 @@ jobs:
       - name: Login to Azure
         uses: azure/login@v2
         with:
-          client-id: ${{ secrets.AZUREAPPSERVICE_CLIENTID_0DDF06C922EF4ADAB6417F79A714F17D }}
-          tenant-id: ${{ secrets.AZUREAPPSERVICE_TENANTID_D1F086FA6D464AA0BD5ACFE20362D1DA }}
-          subscription-id: ${{ secrets.AZUREAPPSERVICE_SUBSCRIPTIONID_A01C210864F448C8A7277BABBF99818D }}
+          client-id: ${{ secrets.AZUREAPPSERVICE_CLIENTID_DD63B5FEBC964DEC84E593AB203159BD }}
+          tenant-id: ${{ secrets.AZUREAPPSERVICE_TENANTID_CCAF552523E3442D868697B9D6E62A98 }}
+          subscription-id: ${{ secrets.AZUREAPPSERVICE_SUBSCRIPTIONID_639A79E1DF1640F48100995514682ACD }}
 
       - name: 'Run Azure Functions Action'
         uses: Azure/functions-action@v1
