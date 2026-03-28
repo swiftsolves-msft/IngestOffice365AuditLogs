@@ -31,7 +31,7 @@ $DceEndpoint            = $env:dceEndpoint            # Logs ingestion URI
 $DcrImmutableId         = $env:dcrImmutableId         # dcr-...
 $StreamName             = "Custom-$Office365CustomLog" # e.g. Custom-O365Management
 
-$azstoragestring        = $env:WEBSITE_CONTENTAZUREFILECONNECTIONSTRING
+$storageAccountName     = $env:StorageAccountName
 $storageAccountTableName = "o365managementapiexecutions"
 #endregion
 
@@ -220,7 +220,7 @@ function Get-O365Data{
 # ===================================================================
 # Storage Table logic (unchanged)
 # ===================================================================
-$storageAccountContext = New-AzStorageContext -ConnectionString $azstoragestring
+$storageAccountContext = New-AzStorageContext -StorageAccountName $storageAccountName -UseConnectedAccount
 $StorageTable = Get-AzStorageTable -Name $storageAccountTableName -Context $storageAccountContext -ErrorAction Ignore
 
 if($null -eq $StorageTable.Name){      

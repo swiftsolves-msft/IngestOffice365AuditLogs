@@ -143,6 +143,7 @@
             "properties": {
                 "networkAcls": { "bypass": "AzureServices", "defaultAction": "Allow" },
                 "supportsHttpsTrafficOnly": true,
+                "allowSharedKeyAccess": false,
                 "encryption": {
                     "services": { "file": { "enabled": true }, "blob": { "enabled": true } },
                     "keySource": "Microsoft.Storage"
@@ -305,7 +306,7 @@
                 "alwaysOn": true,
                 "reserved": true,
                 "serverFarmId": "[concat('/subscriptions/', subscription().subscriptionId,'/resourcegroups/', resourceGroup().name, '/providers/Microsoft.Web/serverfarms/', variables('HostingPlanName'))]",
-                "siteConfig": { "powerShellVersion": "~7" }
+                "siteConfig": { "powerShellVersion": "~7.4" }
             },
             "resources": [
                 {
@@ -335,7 +336,14 @@
                         "OfficeLoginUri": "[variables('OfficeLoginUri')]",
                         "Schedule": "[parameters('FunctionSchedule')]",
                         "dceEndpoint": "[reference(resourceId('Microsoft.Insights/dataCollectionEndpoints', variables('DceName'))).logsIngestion.endpoint]",
-                        "dcrImmutableId": "[reference(resourceId('Microsoft.Insights/dataCollectionRules', variables('DcrName'))).immutableId]"
+                        "dcrImmutableId": "[reference(resourceId('Microsoft.Insights/dataCollectionRules', variables('DcrName'))).immutableId]",
+                        "AzureWebJobsStorage__accountName": "[variables('StorageAccountName')]",
+                        "AzureWebJobsStorage__credential": "managedidentity",
+                        "WEBSITE_CONTENTAZUREFILECONNECTIONSTRING__accountName": "[variables('StorageAccountName')]",
+                        "WEBSITE_CONTENTSHARE": "[toLower(variables('FunctionName'))]",
+                        "StorageAccountName": "[variables('StorageAccountName')]",
+                        "AzureWebJobsSecretStorageType": "keyvault",
+                        "AzureWebJobsSecretStorageKeyVaultUri": "[reference(resourceId('Microsoft.KeyVault/vaults', variables('KeyVaultName')), '2016-10-01').vaultUri]"
                     }
                 }
             ]
@@ -360,6 +368,81 @@
             "name": "[concat(variables('StorageAccountName'), '/default/', tolower(variables('FunctionName')))]",
             "dependsOn": [ "[resourceId('Microsoft.Storage/storageAccounts/fileServices', variables('StorageAccountName'), 'default')]" ],
             "properties": { "shareQuota": 5120 }
+        },
+        {
+            "type": "Microsoft.Authorization/roleAssignments",
+            "apiVersion": "2022-04-01",
+            "name": "[guid(resourceId('Microsoft.Storage/storageAccounts', variables('StorageAccountName')), variables('FunctionName'), 'b7e6dc6d-f1e8-4753-8033-0f276bb0955b')]",
+            "scope": "[resourceId('Microsoft.Storage/storageAccounts', variables('StorageAccountName'))]",
+            "dependsOn": [
+                "[resourceId('Microsoft.Storage/storageAccounts', variables('StorageAccountName'))]",
+                "[resourceId('Microsoft.Web/sites', variables('FunctionName'))]"
+            ],
+            "properties": {
+                "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'b7e6dc6d-f1e8-4753-8033-0f276bb0955b')]",
+                "principalId": "[reference(resourceId('Microsoft.Web/sites', variables('FunctionName')), '2019-08-01', 'full').identity.principalId]",
+                "principalType": "ServicePrincipal"
+            }
+        },
+        {
+            "type": "Microsoft.Authorization/roleAssignments",
+            "apiVersion": "2022-04-01",
+            "name": "[guid(resourceId('Microsoft.Storage/storageAccounts', variables('StorageAccountName')), variables('FunctionName'), '974c5e8b-45b9-4653-ba55-5f855dd0fb88')]",
+            "scope": "[resourceId('Microsoft.Storage/storageAccounts', variables('StorageAccountName'))]",
+            "dependsOn": [
+                "[resourceId('Microsoft.Storage/storageAccounts', variables('StorageAccountName'))]",
+                "[resourceId('Microsoft.Web/sites', variables('FunctionName'))]"
+            ],
+            "properties": {
+                "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '974c5e8b-45b9-4653-ba55-5f855dd0fb88')]",
+                "principalId": "[reference(resourceId('Microsoft.Web/sites', variables('FunctionName')), '2019-08-01', 'full').identity.principalId]",
+                "principalType": "ServicePrincipal"
+            }
+        },
+        {
+            "type": "Microsoft.Authorization/roleAssignments",
+            "apiVersion": "2022-04-01",
+            "name": "[guid(resourceId('Microsoft.Storage/storageAccounts', variables('StorageAccountName')), variables('FunctionName'), '0a9a7e1f-b9d0-4cc4-a60d-0319b160aaa3')]",
+            "scope": "[resourceId('Microsoft.Storage/storageAccounts', variables('StorageAccountName'))]",
+            "dependsOn": [
+                "[resourceId('Microsoft.Storage/storageAccounts', variables('StorageAccountName'))]",
+                "[resourceId('Microsoft.Web/sites', variables('FunctionName'))]"
+            ],
+            "properties": {
+                "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '0a9a7e1f-b9d0-4cc4-a60d-0319b160aaa3')]",
+                "principalId": "[reference(resourceId('Microsoft.Web/sites', variables('FunctionName')), '2019-08-01', 'full').identity.principalId]",
+                "principalType": "ServicePrincipal"
+            }
+        },
+        {
+            "type": "Microsoft.Authorization/roleAssignments",
+            "apiVersion": "2022-04-01",
+            "name": "[guid(resourceId('Microsoft.Storage/storageAccounts', variables('StorageAccountName')), variables('FunctionName'), '0c867c2a-1d8c-454a-a3db-ab2ea1bdc8bb')]",
+            "scope": "[resourceId('Microsoft.Storage/storageAccounts', variables('StorageAccountName'))]",
+            "dependsOn": [
+                "[resourceId('Microsoft.Storage/storageAccounts', variables('StorageAccountName'))]",
+                "[resourceId('Microsoft.Web/sites', variables('FunctionName'))]"
+            ],
+            "properties": {
+                "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '0c867c2a-1d8c-454a-a3db-ab2ea1bdc8bb')]",
+                "principalId": "[reference(resourceId('Microsoft.Web/sites', variables('FunctionName')), '2019-08-01', 'full').identity.principalId]",
+                "principalType": "ServicePrincipal"
+            }
+        },
+        {
+            "type": "Microsoft.Authorization/roleAssignments",
+            "apiVersion": "2022-04-01",
+            "name": "[guid(resourceId('Microsoft.Insights/dataCollectionRules', variables('DcrName')), variables('FunctionName'), '3913510d-42f4-4e42-8a64-420c390055eb')]",
+            "scope": "[resourceId('Microsoft.Insights/dataCollectionRules', variables('DcrName'))]",
+            "dependsOn": [
+                "[resourceId('Microsoft.Insights/dataCollectionRules', variables('DcrName'))]",
+                "[resourceId('Microsoft.Web/sites', variables('FunctionName'))]"
+            ],
+            "properties": {
+                "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '3913510d-42f4-4e42-8a64-420c390055eb')]",
+                "principalId": "[reference(resourceId('Microsoft.Web/sites', variables('FunctionName')), '2019-08-01', 'full').identity.principalId]",
+                "principalType": "ServicePrincipal"
+            }
         }
     ]
 }
