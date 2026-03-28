@@ -11,8 +11,8 @@ if ($Timer.IsPastDue) {
 
 Write-Host "PowerShell timer trigger function ran! TIME: $currentUTCtime"
 
-# Connect with Managed Identity (for Azure Table storage)
-if ($env:MSI_SECRET -and (Get-Module -ListAvailable Az.Accounts)) {
+# Connect with Managed Identity (for Azure Table storage + DCR ingestion)
+if (-not (Get-AzContext)) {
     Connect-AzAccount -Identity
 }
 
@@ -25,6 +25,8 @@ $AADAppClientId         = $env:clientID
 $AADAppClientSecret     = $env:clientSecret 
 $AADAppClientDomain     = $env:domain
 $AADAppPublisher        = $env:publisher
+$OfficeLoginUri         = $env:OfficeLoginUri
+$AzureAADLoginUri       = $env:AzureAADLoginUri
 
 # === NEW: DCR + DCE settings (required for modern ingestion) ===
 $DceEndpoint            = $env:dceEndpoint            # Logs ingestion URI
