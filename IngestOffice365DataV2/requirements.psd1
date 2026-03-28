@@ -4,5 +4,6 @@
 @{    
 	'Az.Accounts' = '2.*'
 	'Az.Storage' = '6.*'
+	'Az.Resources' = '6.*'
 	'AzTable' = '2.*'
 }
