@@ -237,8 +237,13 @@ Else {
 
 $lastExecutionEndTime = Get-AzTableRow -table $o365TimeStampTbl -partitionKey "Office365" -RowKey "lastExecutionEndTime" -ErrorAction Ignore
 $lastlogTime = $lastExecutionEndTime.lastExecutionEndTimeValue
-$startTime = $lastlogTime | Get-Date -Format yyyy-MM-ddTHH:mm:ss
-$endTime   = $currentUTCtime | Get-Date -Format yyyy-MM-ddTHH:mm:ss
+
+if ([string]::IsNullOrEmpty($lastlogTime)) {
+    $startTime = $currentUTCtime.AddSeconds(-300) | Get-Date -Format yyyy-MM-ddTHH:mm:ss
+} else {
+    $startTime = Get-Date -Date $lastlogTime -Format yyyy-MM-ddTHH:mm:ss
+}
+$endTime = $currentUTCtime | Get-Date -Format yyyy-MM-ddTHH:mm:ss
 
 # Get O365 auth token and start ingestion
 $headerParams = Get-AuthToken $AADAppClientId $AADAppClientSecret $AADAppClientDomain $AzureTenantId
