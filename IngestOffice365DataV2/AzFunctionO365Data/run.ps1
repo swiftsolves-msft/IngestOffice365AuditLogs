@@ -220,18 +220,25 @@ function Get-O365Data{
                 Write-Output $data.Count
 
                 foreach($event in $data){
+                    $matchesFilter = $false
                     if($Office365RecordTypes -eq "0"){
                         if(($event.Source) -ne "Cloud App Security"){
-                            $ht = $event | Convert-ObjectToHashTable
-                            Send-ToLogAnalytics -o365Data $ht
+                            $matchesFilter = $true
                         }
                     }
                     else {
                         $types = ($Office365RecordTypes).split(",")
                         if(($event.RecordType) -in $types){
-                            $ht = $event | Convert-ObjectToHashTable
-                            Send-ToLogAnalytics -o365Data $ht
+                            $matchesFilter = $true
                         }
+                    }
+
+                    if ($matchesFilter) {
+                        $wrapped = @{
+                            TimeGenerated = if ($event.CreationTime) { $event.CreationTime } else { $currentUTCtime.ToString("o") }
+                            RawData       = ($event | ConvertTo-Json -Depth 10 -Compress)
+                        }
+                        Send-ToLogAnalytics -o365Data $wrapped
                     }
                 }
             }

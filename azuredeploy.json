@@ -284,6 +284,7 @@
                     {
                         "streams": [ "Custom-O365" ],
                         "destinations": [ "O365Destination" ],
+                        "transformKql": "source",
                         "outputStream": "Custom-O365_CL"
                     }
                 ]
