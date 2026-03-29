@@ -11,7 +11,7 @@ if ($Timer.IsPastDue) {
 
 Write-Host "PowerShell timer trigger function ran! TIME: $currentUTCtime"
 
-# Connect with Managed Identity (for Azure Table storage + DCR ingestion)
+# Connect with Managed Identity (for ARM API + DCR ingestion)
 if (-not (Get-AzContext)) {
     Connect-AzAccount -Identity
 }
@@ -28,13 +28,13 @@ $AADAppPublisher        = $env:publisher
 $OfficeLoginUri         = $env:OfficeLoginUri
 $AzureAADLoginUri       = $env:AzureAADLoginUri
 
-# === NEW: DCR + DCE settings (required for modern ingestion) ===
+# === DCR + DCE settings (required for modern ingestion) ===
 $DceEndpoint            = $env:dceEndpoint            # Logs ingestion URI
 $DcrImmutableId         = $env:dcrImmutableId         # dcr-...
 $StreamName             = "Custom-$Office365CustomLog" # e.g. Custom-O365Management
 
-$storageAccountName     = $env:StorageAccountName
-$storageAccountTableName = "o365managementapiexecutions"
+# === State tracking via app settings ===
+$timeDiff               = [int]$env:timeDiff          # Initial lookback in seconds (e.g. -300)
 #endregion
 
 # Validate DCE endpoint
@@ -129,6 +129,38 @@ function Send-ToLogAnalytics {
 }
 
 # ===================================================================
+# Update Function App's own app setting via ARM REST API
+# ===================================================================
+function Update-AppSetting {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][string]$Key,
+        [Parameter(Mandatory)][string]$Value
+    )
+
+    $subId = $env:WEBSITE_OWNER_NAME.Split('+')[0]
+    $rg    = $env:WEBSITE_RESOURCE_GROUP
+    $app   = $env:WEBSITE_SITE_NAME
+
+    $armToken = (Get-AzAccessToken -ResourceUrl "https://management.azure.com" -ErrorAction Stop).Token
+
+    $listUri = "https://management.azure.com/subscriptions/$subId/resourceGroups/$rg/providers/Microsoft.Web/sites/$app/config/appsettings/list?api-version=2022-03-01"
+    $current = Invoke-RestMethod -Uri $listUri -Method Post -Headers @{ Authorization = "Bearer $armToken" } -ContentType "application/json"
+
+    $props = @{}
+    foreach ($p in $current.properties.PSObject.Properties) {
+        $props[$p.Name] = $p.Value
+    }
+    $props[$Key] = $Value
+
+    $putUri = "https://management.azure.com/subscriptions/$subId/resourceGroups/$rg/providers/Microsoft.Web/sites/$app/config/appsettings?api-version=2022-03-01"
+    $body   = @{ properties = $props } | ConvertTo-Json -Depth 5 -Compress
+
+    $null = Invoke-RestMethod -Uri $putUri -Method Put -Headers @{ Authorization = "Bearer $armToken" } -Body $body -ContentType "application/json"
+    Write-Host "Updated app setting '$Key' = '$Value'"
+}
+
+# ===================================================================
 # Keep existing helper functions (unchanged)
 # ===================================================================
 function Convert-ObjectToHashTable {
@@ -214,34 +246,22 @@ function Get-O365Data{
         } until ($nextPage -eq $false)
     }
 
-    # Update last run time
+    # Update last run time via app setting
     $endTime = $currentUTCtime | Get-Date -Format yyyy-MM-ddTHH:mm:ss
-    Add-AzTableRow -table $o365TimeStampTbl -PartitionKey "Office365" -RowKey "lastExecutionEndTime" -property @{"lastExecutionEndTimeValue"=$endTime} -UpdateExisting
+    Update-AppSetting -Key "LastExecutionEndTime" -Value $endTime
 }
 
 # ===================================================================
-# Storage Table logic (unchanged)
+# State tracking via app setting
 # ===================================================================
-$storageAccountContext = New-AzStorageContext -StorageAccountName $storageAccountName -UseConnectedAccount
-$StorageTable = Get-AzStorageTable -Name $storageAccountTableName -Context $storageAccountContext -ErrorAction Ignore
-
-if($null -eq $StorageTable.Name){      
-    $startTime = $currentUTCtime.AddSeconds(-300) | Get-Date -Format yyyy-MM-ddTHH:mm:ss
-    New-AzStorageTable -Name $storageAccountTableName -Context $storageAccountContext
-    $o365TimeStampTbl = (Get-AzStorageTable -Name $storageAccountTableName -Context $storageAccountContext.Context).cloudTable    
-    Add-AzTableRow -table $o365TimeStampTbl -PartitionKey "Office365" -RowKey "lastExecutionEndTime" -property @{"lastExecutionEndTimeValue"=$startTime} -UpdateExisting
-}
-Else {
-    $o365TimeStampTbl = (Get-AzStorageTable -Name $storageAccountTableName -Context $storageAccountContext.Context).cloudTable
-}
-
-$lastExecutionEndTime = Get-AzTableRow -table $o365TimeStampTbl -partitionKey "Office365" -RowKey "lastExecutionEndTime" -ErrorAction Ignore
-$lastlogTime = $lastExecutionEndTime.lastExecutionEndTimeValue
+$lastlogTime = $env:LastExecutionEndTime
 
 if ([string]::IsNullOrEmpty($lastlogTime)) {
-    $startTime = $currentUTCtime.AddSeconds(-300) | Get-Date -Format yyyy-MM-ddTHH:mm:ss
+    $startTime = $currentUTCtime.AddSeconds($timeDiff) | Get-Date -Format yyyy-MM-ddTHH:mm:ss
+    Write-Host "No previous execution found. Looking back $timeDiff seconds."
 } else {
     $startTime = Get-Date -Date $lastlogTime -Format yyyy-MM-ddTHH:mm:ss
+    Write-Host "Resuming from last execution end time: $startTime"
 }
 $endTime = $currentUTCtime | Get-Date -Format yyyy-MM-ddTHH:mm:ss
 

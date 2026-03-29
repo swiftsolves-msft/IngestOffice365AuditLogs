@@ -69,6 +69,13 @@
             "metadata": {
                 "description": "Cron expression for TimerTrigger"
             }
+        },
+        "LastExecutionEndTime": {
+            "type": "string",
+            "defaultValue": "[utcNow('yyyy-MM-ddTHH:mm:ss')]",
+            "metadata": {
+                "description": "Seed timestamp for the first run (defaults to deployment time in UTC). Subsequent runs update this automatically."
+            }
         }
     },
     "variables": {
@@ -337,8 +344,8 @@
                         "dcrImmutableId": "[reference(resourceId('Microsoft.Insights/dataCollectionRules', variables('DcrName'))).immutableId]",
                         "AzureWebJobsStorage__accountName": "[variables('StorageAccountName')]",
                         "AzureWebJobsStorage__credential": "managedidentity",
-                        "StorageAccountName": "[variables('StorageAccountName')]",
                         "AzureWebJobsSecretStorageType": "keyvault",
+                        "LastExecutionEndTime": "[parameters('LastExecutionEndTime')]",
                         "AzureWebJobsSecretStorageKeyVaultUri": "[reference(resourceId('Microsoft.KeyVault/vaults', variables('KeyVaultName')), '2016-10-01').vaultUri]"
                     }
                 }
@@ -391,14 +398,13 @@
         {
             "type": "Microsoft.Authorization/roleAssignments",
             "apiVersion": "2022-04-01",
-            "name": "[guid(resourceId('Microsoft.Storage/storageAccounts', variables('StorageAccountName')), variables('FunctionName'), '0a9a7e1f-b9d0-4cc4-a60d-0319b160aaa3')]",
-            "scope": "[resourceId('Microsoft.Storage/storageAccounts', variables('StorageAccountName'))]",
+            "name": "[guid(resourceId('Microsoft.Web/sites', variables('FunctionName')), variables('FunctionName'), 'de139f84-1756-47ae-9be6-808fbbe84772')]",
+            "scope": "[resourceId('Microsoft.Web/sites', variables('FunctionName'))]",
             "dependsOn": [
-                "[resourceId('Microsoft.Storage/storageAccounts', variables('StorageAccountName'))]",
                 "[resourceId('Microsoft.Web/sites', variables('FunctionName'))]"
             ],
             "properties": {
-                "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '0a9a7e1f-b9d0-4cc4-a60d-0319b160aaa3')]",
+                "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'de139f84-1756-47ae-9be6-808fbbe84772')]",
                 "principalId": "[reference(resourceId('Microsoft.Web/sites', variables('FunctionName')), '2019-08-01', 'full').identity.principalId]",
                 "principalType": "ServicePrincipal"
             }
