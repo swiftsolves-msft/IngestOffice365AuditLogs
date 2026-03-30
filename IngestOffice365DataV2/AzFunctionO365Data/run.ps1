@@ -83,7 +83,7 @@ function Send-ToLogAnalytics {
         $tempDataSize += ($record | ConvertTo-Json -Depth 5).Length
 
         if ($tempDataSize -gt $maxBatchSize) {
-            $body = $tempData | ConvertTo-Json -Depth 5 -Compress
+            $body = $tempData | ConvertTo-Json -Depth 5 -Compress -AsArray
 
             $headers = @{
                 "Authorization" = Get-LogIngestionToken
@@ -108,7 +108,7 @@ function Send-ToLogAnalytics {
 
     # Send any remaining data
     if ($tempData.Count -gt 0) {
-        $body = $tempData | ConvertTo-Json -Depth 5 -Compress
+        $body = $tempData | ConvertTo-Json -Depth 5 -Compress -AsArray
 
         $headers = @{
             "Authorization" = Get-LogIngestionToken
@@ -219,6 +219,7 @@ function Get-O365Data{
                 $data = Invoke-RestMethod -Method GET -Headers $headerParams -Uri ($obj.contentUri)
                 Write-Output $data.Count
 
+                $blobData = @()
                 foreach($event in $data){
                     $matchesFilter = $false
                     if($Office365RecordTypes -eq "0"){
@@ -234,12 +235,16 @@ function Get-O365Data{
                     }
 
                     if ($matchesFilter) {
-                        $wrapped = @{
-                            TimeGenerated = if ($event.CreationTime) { $event.CreationTime } else { $currentUTCtime.ToString("o") }
+                        $blobData += @{
+                            TimeGenerated = if ($event.CreationTime) {
+                                [datetime]::Parse($event.CreationTime, $null, [System.Globalization.DateTimeStyles]::AssumeUniversal).ToUniversalTime().ToString("o")
+                            } else { $currentUTCtime.ToString("o") }
                             RawData       = ($event | ConvertTo-Json -Depth 10 -Compress)
                         }
-                        Send-ToLogAnalytics -o365Data $wrapped
                     }
+                }
+                if ($blobData.Count -gt 0) {
+                    Send-ToLogAnalytics -o365Data $blobData
                 }
             }
 
