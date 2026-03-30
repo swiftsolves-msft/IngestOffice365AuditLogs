@@ -1,0 +1,39 @@
+name: search_mailbox_deletions
+description: >
+  Searches O365_CL for Exchange mailbox group operations (RecordType 3) within a date range.
+  Covers bulk item actions like SoftDelete, HardDelete, MoveToDeletedItems.
+  Returns affected items with subjects, source and destination folders, and cross-mailbox flags.
+  Use this to investigate evidence destruction, anti-forensics, or unusual deletion patterns.
+collection: O365ExchangeAudit
+defaultWorkspace: 357f57e7-88a9-4986-8caa-eb5ff128335f
+query: >
+  O365_CL
+  | where TimeGenerated between (datetime('{startTime}') .. datetime('{endTime}'))
+  | extend d = parse_json(RawData)
+  | where toint(d.RecordType) == 3
+  | extend
+      Operation = tostring(d.Operation),
+      UserId = tostring(d.UserId),
+      CreationTime = todatetime(d.CreationTime),
+      ClientIP = tostring(d.ClientIP),
+      ClientInfo = tostring(d.ClientInfoString),
+      MailboxOwner = tostring(d.MailboxOwnerUPN),
+      FolderPath = tostring(d['Folder']['Path']),
+      DestFolderPath = tostring(d['DestFolder']['Path']),
+      AffectedItems = tostring(d.AffectedItems),
+      CrossMailboxOperation = tobool(d.CrossMailboxOperation),
+      ResultStatus = tostring(d.ResultStatus),
+      LogonType = toint(d.LogonType)
+  | project CreationTime, Operation, UserId, MailboxOwner, FolderPath,
+            DestFolderPath, AffectedItems, CrossMailboxOperation, ClientIP,
+            ClientInfo, LogonType, ResultStatus
+  | order by CreationTime desc
+parameters:
+  - name: startTime
+    type: string
+    description: "Start of the search window in ISO 8601 format (e.g. 2026-03-29T00:00:00)"
+    required: true
+  - name: endTime
+    type: string
+    description: "End of the search window in ISO 8601 format (e.g. 2026-03-30T23:59:59)"
+    required: true

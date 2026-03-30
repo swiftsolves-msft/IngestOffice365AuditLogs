@@ -1,0 +1,46 @@
+name: search_mailbox_item_activity
+description: >
+  Searches O365_CL for Exchange mailbox item operations (RecordType 2) within a date range.
+  Covers single-item actions like Create, Send, Update on mailbox items.
+  Optionally filter by email subject. Returns item details including subject, folder path,
+  size, attachments, and client info. Use this to track specific email lifecycle events.
+collection: O365ExchangeAudit
+defaultWorkspace: 357f57e7-88a9-4986-8caa-eb5ff128335f
+query: >
+  O365_CL
+  | where TimeGenerated between (datetime('{startTime}') .. datetime('{endTime}'))
+  | extend d = parse_json(RawData)
+  | where toint(d.RecordType) == 2
+  | where '{subject}' == '*' or tostring(d['Item']['Subject']) has '{subject}'
+  | extend
+      Operation = tostring(d.Operation),
+      UserId = tostring(d.UserId),
+      CreationTime = todatetime(d.CreationTime),
+      Subject = tostring(d['Item']['Subject']),
+      ParentFolder = tostring(d['Item']['ParentFolder']['Path']),
+      SizeBytes = toint(d['Item']['SizeInBytes']),
+      InternetMessageId = tostring(d['Item']['InternetMessageId']),
+      Attachments = tostring(d['Item']['Attachments']),
+      ClientIP = tostring(d.ClientIP),
+      ClientInfo = tostring(d.ClientInfoString),
+      MailboxOwner = tostring(d.MailboxOwnerUPN),
+      ResultStatus = tostring(d.ResultStatus),
+      LogonType = toint(d.LogonType)
+  | project CreationTime, Operation, UserId, MailboxOwner, Subject, ParentFolder,
+            SizeBytes, InternetMessageId, Attachments, ClientIP, ClientInfo,
+            LogonType, ResultStatus
+  | order by CreationTime desc
+parameters:
+  - name: startTime
+    type: string
+    description: "Start of the search window in ISO 8601 format (e.g. 2026-03-29T00:00:00)"
+    required: true
+  - name: endTime
+    type: string
+    description: "End of the search window in ISO 8601 format (e.g. 2026-03-30T23:59:59)"
+    required: true
+  - name: subject
+    type: string
+    description: "Email subject keyword to filter on. Use '*' or omit to return all mailbox item operations."
+    required: false
+    default: "*"

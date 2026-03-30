@@ -1,0 +1,37 @@
+name: detect_inbox_rules
+description: >
+  Detects new inbox rule creation in O365_CL (Exchange Admin RecordType 1).
+  Identifies New-InboxRule and Set-InboxRule operations which are common persistence
+  and defense evasion techniques (MITRE T1564.008). Attackers create inbox rules to
+  auto-delete security alerts, redirect emails, or hide evidence of compromise.
+  Returns rule parameters, the admin who created it, and client details.
+collection: O365ExchangeAudit
+defaultWorkspace: 357f57e7-88a9-4986-8caa-eb5ff128335f
+query: >
+  O365_CL
+  | where TimeGenerated between (datetime('{startTime}') .. datetime('{endTime}'))
+  | extend d = parse_json(RawData)
+  | where toint(d.RecordType) == 1
+  | where tostring(d.Operation) in ("New-InboxRule", "Set-InboxRule", "Enable-InboxRule")
+  | extend
+      Operation = tostring(d.Operation),
+      UserId = tostring(d.UserId),
+      CreationTime = todatetime(d.CreationTime),
+      ClientIP = tostring(d.ClientIP),
+      Parameters = tostring(d.Parameters),
+      ObjectId = tostring(d.ObjectId),
+      ResultStatus = tostring(d.ResultStatus),
+      SessionId = tostring(d.SessionId),
+      ExternalAccess = tobool(d.ExternalAccess)
+  | project CreationTime, Operation, UserId, ClientIP, ObjectId, Parameters,
+            ResultStatus, ExternalAccess, SessionId
+  | order by CreationTime desc
+parameters:
+  - name: startTime
+    type: string
+    description: "Start of the search window in ISO 8601 format (e.g. 2026-03-29T00:00:00)"
+    required: true
+  - name: endTime
+    type: string
+    description: "End of the search window in ISO 8601 format (e.g. 2026-03-30T23:59:59)"
+    required: true

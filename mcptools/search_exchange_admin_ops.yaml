@@ -1,0 +1,39 @@
+name: search_exchange_admin_ops
+description: >
+  Searches O365_CL for Exchange Admin operations (RecordType 1) within a date range.
+  Covers admin cmdlets like Set-Mailbox, New-InboxRule, Set-ConditionalAccessPolicy, and others.
+  Returns the operation name, admin user, parameters, target object, and originating server.
+  Use this tool to investigate administrative changes, privilege abuse, or persistence mechanisms.
+collection: O365ExchangeAudit
+defaultWorkspace: 357f57e7-88a9-4986-8caa-eb5ff128335f
+query: >
+  O365_CL
+  | where TimeGenerated between (datetime('{startTime}') .. datetime('{endTime}'))
+  | extend d = parse_json(RawData)
+  | where toint(d.RecordType) == 1
+  | extend
+      Operation = tostring(d.Operation),
+      UserId = tostring(d.UserId),
+      ObjectId = tostring(d.ObjectId),
+      CreationTime = todatetime(d.CreationTime),
+      ClientIP = tostring(d.ClientIP),
+      ResultStatus = tostring(d.ResultStatus),
+      Parameters = tostring(d.Parameters),
+      ModifiedProperties = tostring(d.ModifiedProperties),
+      ModifiedObjectResolvedName = tostring(d.ModifiedObjectResolvedName),
+      OriginatingServer = tostring(d.OriginatingServer),
+      SessionId = tostring(d.SessionId),
+      ExternalAccess = tobool(d.ExternalAccess)
+  | project CreationTime, Operation, UserId, ObjectId, ClientIP, ResultStatus,
+            Parameters, ModifiedProperties, ModifiedObjectResolvedName,
+            OriginatingServer, ExternalAccess
+  | order by CreationTime desc
+parameters:
+  - name: startTime
+    type: string
+    description: "Start of the search window in ISO 8601 format (e.g. 2026-03-29T00:00:00)"
+    required: true
+  - name: endTime
+    type: string
+    description: "End of the search window in ISO 8601 format (e.g. 2026-03-30T23:59:59)"
+    required: true

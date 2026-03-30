@@ -1,0 +1,44 @@
+name: search_emails_sent
+description: >
+  Searches O365_CL for sent emails (Exchange RecordType 2, Operation Send) within a date range.
+  Returns sender, subject, timestamp, IP address, client application, message size, and internet message ID.
+  Use this tool to investigate email activity, data exfiltration, or compromised account behavior.
+collection: O365ExchangeAudit
+defaultWorkspace: 357f57e7-88a9-4986-8caa-eb5ff128335f
+query: >
+  O365_CL
+  | where TimeGenerated between (datetime('{startTime}') .. datetime('{endTime}'))
+  | extend d = parse_json(RawData)
+  | where toint(d.RecordType) == 2 and tostring(d.Operation) == "Send"
+  | where '{subject}' == '*' or tostring(d['Item']['Subject']) has '{subject}'
+  | extend
+      Sender = tostring(d.UserId),
+      Subject = tostring(d['Item']['Subject']),
+      CreationTime = todatetime(d.CreationTime),
+      ClientIP = tostring(d.ClientIP),
+      ClientInfo = tostring(d.ClientInfoString),
+      SizeBytes = toint(d['Item']['SizeInBytes']),
+      InternetMessageId = tostring(d['Item']['InternetMessageId']),
+      Attachments = tostring(d['Item']['Attachments']),
+      SaveToSentItems = tobool(d.SaveToSentItems),
+      SendAsSmtp = tostring(d.SendAsUserSmtp),
+      SendOnBehalfSmtp = tostring(d.SendOnBehalfOfUserSmtp),
+      ResultStatus = tostring(d.ResultStatus)
+  | project CreationTime, Sender, Subject, ClientIP, ClientInfo, SizeBytes,
+            InternetMessageId, Attachments, SaveToSentItems, SendAsSmtp,
+            SendOnBehalfSmtp, ResultStatus
+  | order by CreationTime desc
+parameters:
+  - name: startTime
+    type: string
+    description: "Start of the search window in ISO 8601 format (e.g. 2026-03-29T00:00:00)"
+    required: true
+  - name: endTime
+    type: string
+    description: "End of the search window in ISO 8601 format (e.g. 2026-03-30T23:59:59)"
+    required: true
+  - name: subject
+    type: string
+    description: "Email subject keyword to filter on. Use '*' or omit to return all sent emails."
+    required: false
+    default: "*"

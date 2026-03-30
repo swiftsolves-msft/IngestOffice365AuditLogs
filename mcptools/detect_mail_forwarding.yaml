@@ -1,0 +1,43 @@
+name: detect_mail_forwarding
+description: >
+  Detects mail forwarding configuration changes in O365_CL (Exchange Admin RecordType 1).
+  Identifies Set-Mailbox operations where ForwardingSmtpAddress or ForwardingAddress parameters
+  are set, which is a common data exfiltration and persistence technique (MITRE T1114.003).
+  Returns the admin who made the change, the forwarding target, and whether deliver-to-mailbox is enabled.
+collection: O365ExchangeAudit
+defaultWorkspace: 357f57e7-88a9-4986-8caa-eb5ff128335f
+query: >
+  O365_CL
+  | where TimeGenerated between (datetime('{startTime}') .. datetime('{endTime}'))
+  | extend d = parse_json(RawData)
+  | where toint(d.RecordType) == 1
+  | where tostring(d.Operation) == "Set-Mailbox"
+  | where tostring(d.Parameters) has_any ("ForwardingSmtpAddress", "ForwardingAddress", "DeliverToMailboxAndForward")
+  | extend
+      UserId = tostring(d.UserId),
+      CreationTime = todatetime(d.CreationTime),
+      ClientIP = tostring(d.ClientIP),
+      Parameters = d.Parameters,
+      ObjectId = tostring(d.ObjectId),
+      ResultStatus = tostring(d.ResultStatus),
+      ExternalAccess = tobool(d.ExternalAccess)
+  | mv-expand param = Parameters
+  | summarize
+      ForwardingSmtpAddress = take_anyif(tostring(param.Value), tostring(param.Name) == "ForwardingSmtpAddress"),
+      ForwardingAddress = take_anyif(tostring(param.Value), tostring(param.Name) == "ForwardingAddress"),
+      DeliverToMailboxAndForward = take_anyif(tostring(param.Value), tostring(param.Name) == "DeliverToMailboxAndForward"),
+      TargetMailbox = take_anyif(tostring(param.Value), tostring(param.Name) == "Identity")
+      by CreationTime, UserId, ClientIP, ObjectId, ResultStatus, ExternalAccess
+  | where isnotempty(ForwardingSmtpAddress) or isnotempty(ForwardingAddress)
+  | project CreationTime, UserId, ClientIP, TargetMailbox, ForwardingSmtpAddress,
+            ForwardingAddress, DeliverToMailboxAndForward, ResultStatus, ExternalAccess
+  | order by CreationTime desc
+parameters:
+  - name: startTime
+    type: string
+    description: "Start of the search window in ISO 8601 format (e.g. 2026-03-29T00:00:00)"
+    required: true
+  - name: endTime
+    type: string
+    description: "End of the search window in ISO 8601 format (e.g. 2026-03-30T23:59:59)"
+    required: true
