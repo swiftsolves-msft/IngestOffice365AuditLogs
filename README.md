@@ -100,9 +100,9 @@ Invoke-WebRequest -Method Post -Headers $headerParams -Uri "https://manage.offic
 Thanks to the published ARM template the deployment of the [Azure Funtion App](https://github.com/sreedharande/IngestOffice365AuditLogs) is done with just a few clicks. 
 1. Click to **Deploy the template / Deploy to Azure** below.
 
-[![DeploytoAzure](https://aka.ms/deploytoazurebutton)](https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2Fsreedharande%2FIngestOffice365AuditLogs%2Fmain%2Fazuredeploy.json)
+[![DeploytoAzure](https://aka.ms/deploytoazurebutton)](https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2Fswiftsolves-msft%2FIngestOffice365AuditLogs%2Fmain%2Fazuredeploy.json)
 
-[![Deploy to Azure Gov](https://aka.ms/deploytoazuregovbutton)](https://portal.azure.us/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2Fsreedharande%2FIngestOffice365AuditLogs%2Fmain%2Fazuredeploy.json)
+[![Deploy to Azure Gov](https://aka.ms/deploytoazuregovbutton)](https://portal.azure.us/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2Fswiftsolves-msft%2FIngestOffice365AuditLogs%2Fmain%2Fazuredeploy.json)
 
 2. Now it is time to use the noted details from previous steps.  
 - Select the right **Subscription**, **Resource Group** and **Region** where you what to deploy the Azure Funtion App.  
@@ -113,6 +113,15 @@ Thanks to the published ARM template the deployment of the [Azure Funtion App](h
 3. Click to **Review + create**, review the configuration and click **Create**. 
 4. Now the deployment of ARM template is completed. 
 ![Complete](./images/Picture10.png)
+
+## Post Deployment Instructions [WIP]
+
+1. Fork this repo to your GH
+2. Azure Function -> Deployment Center -> Connect GH 
+3. Update the GH Actions - > workflow yanl for path
+```env:
+  AZURE_FUNCTIONAPP_PACKAGE_PATH: './IngestOffice365DataV2' # set this to the path to your web app project, defaults to the repository root
+``` 
 
 ## How to use the Activity Logs in Azure Sentinel 
 Once the Azure Function App is functional you can query the General.Audit and DLP.All activity logs. The activity will reside in a Custom Table as configured in the Azure Function App above. The following table includes sample Kusto Language Queries (KQL).  You can see these are using the Custom Logs (Custom log tables always end in “_CL”) and the values we mentioned earlier.<br>
