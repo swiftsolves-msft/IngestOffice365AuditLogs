@@ -93,7 +93,11 @@ Invoke-WebRequest -Method Post -Headers $headerParams -Uri "https://manage.offic
 ```powershell
 Invoke-WebRequest -Method Post -Headers $headerParams -Uri "https://manage.office.[com][us]/api/v1.0/$tenantGuid/activity/feed/subscriptions/start?contentType=DLP.ALL&PublisherIdentifier=$Publisher"
 ```
-5. A successful output looks like as below. <br>
+5. Run this command to enable **Audit.Exchange** subscription
+```powershell
+Invoke-WebRequest -Method Post -Headers $headerParams -Uri "https://manage.office.[com][us]/api/v1.0/$tenantGuid/activity/feed/subscriptions/start?contentType=Audit.Exchange&PublisherIdentifier=$Publisher"
+```
+6. A successful output looks like as below. <br>
 ![Output](./images/Picture7.png)<br>
 
 ### Deploy the Azure Function App 
@@ -118,8 +122,9 @@ Thanks to the published ARM template the deployment of the [Azure Funtion App](h
 
 1. Fork this repo to your GH
 2. Azure Function -> Deployment Center -> Connect GH 
-3. Update the GH Actions - > workflow yanl for path
-```env:
+3. Update the GH Actions - > workflow.yaml for path
+```
+env:
   AZURE_FUNCTIONAPP_PACKAGE_PATH: './IngestOffice365DataV2' # set this to the path to your web app project, defaults to the repository root
 ``` 
 
