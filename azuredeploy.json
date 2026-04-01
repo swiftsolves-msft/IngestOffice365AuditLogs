@@ -438,7 +438,7 @@
                 "reserved": false,
                 "serverFarmId": "[concat('/subscriptions/', subscription().subscriptionId,'/resourcegroups/', resourceGroup().name, '/providers/Microsoft.Web/serverfarms/', variables('HostingPlanName'))]",
                 "siteConfig": {
-                    "powerShellVersion": "~7.4"
+                    "powerShellVersion": "7.4"
                 }
             },
             "resources": [
