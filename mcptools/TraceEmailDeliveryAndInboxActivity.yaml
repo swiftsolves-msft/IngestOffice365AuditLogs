@@ -1,0 +1,96 @@
+name: TraceEmailDeliveryandInboxActivity
+description: >
+  Traces the full lifecycle of an email in Microsoft 365 Exchange audit logs.
+  Given a subject keyword, sender, and recipient, this tool:
+  1. Finds the Send event (when the email left the sender's mailbox).
+  2. Finds subsequent inbox activity in the RECIPIENT's mailbox tied to the same
+     InternetMessageId — including Create (delivery), MoveToDeletedItems, SoftDelete,
+     HardDelete, Move, Update, MailItemsAccessed, and Forward/Reply operations.
+  Results are ordered chronologically so you can reconstruct exactly what happened
+  to the email after it was received (read, forwarded, deleted, moved, etc.).
+  Use this tool to investigate insider threats, data exfiltration, or compromised accounts.
+collection: O365ExchangeAudit
+defaultWorkspace: 357f57e7-88a9-4986-8caa-eb5ff128335f
+query: >
+  // Step 1 – Find the Send event and capture the InternetMessageId
+  let SendEvent = O365_CL
+  | where TimeGenerated between (datetime('{startTime}') .. datetime('{endTime}'))
+  | extend d = parse_json(RawData)
+  | where toint(d.RecordType) == 2 and tostring(d.Operation) == "Send"
+  | where '{sender}' == '*' or tostring(d.UserId) has '{sender}'
+  | where '{subject}' == '*' or tostring(d['Item']['Subject']) has '{subject}'
+  | extend
+      EventType          = "1_Send",
+      Actor              = tostring(d.UserId),
+      MailboxOwner       = tostring(d.MailboxOwnerUPN),
+      Subject            = tostring(d['Item']['Subject']),
+      InternetMessageId  = tostring(d['Item']['InternetMessageId']),
+      Folder             = tostring(d['Item']['ParentFolder']['Path']),
+      DestFolder         = "",
+      SizeBytes          = toint(d['Item']['SizeInBytes']),
+      Attachments        = tostring(d['Item']['Attachments']),
+      ClientIP           = tostring(d.ClientIP),
+      ClientInfo         = tostring(d.ClientInfoString),
+      ResultStatus       = tostring(d.ResultStatus),
+      CreationTime       = todatetime(d.CreationTime)
+  | project CreationTime, EventType, Actor, MailboxOwner, Subject,
+            InternetMessageId, Folder, DestFolder, SizeBytes, Attachments,
+            ClientIP, ClientInfo, ResultStatus;
+  // Step 2 – Collect all InternetMessageIds found in Step 1
+  let MsgIds = SendEvent | summarize make_set(InternetMessageId);
+  // Step 3 – Find all subsequent activity on those messages in the RECIPIENT's mailbox
+  let RecipientActivity = O365_CL
+  | where TimeGenerated between (datetime('{startTime}') .. datetime('{endTime}'))
+  | extend d = parse_json(RawData)
+  | where toint(d.RecordType) in (2, 3)
+  | where '{recipient}' == '*' or tostring(d.MailboxOwnerUPN) has '{recipient}'
+  // Match on InternetMessageId across single-item (Item) and group-item (AffectedItems) records
+  | extend SingleMsgId = tostring(d['Item']['InternetMessageId'])
+  | mv-expand AffItem = d.AffectedItems
+  | extend AffMsgId = tostring(AffItem['InternetMessageId'])
+  | extend MatchedMsgId = iff(isnotempty(SingleMsgId), SingleMsgId, AffMsgId)
+  | where MatchedMsgId in (MsgIds.set_InternetMessageId)
+  | extend
+      EventType         = strcat("2_", tostring(d.Operation)),
+      Actor             = tostring(d.UserId),
+      MailboxOwner      = tostring(d.MailboxOwnerUPN),
+      Subject           = coalesce(tostring(d['Item']['Subject']), tostring(AffItem['Subject'])),
+      InternetMessageId = MatchedMsgId,
+      Folder            = coalesce(tostring(d['Folder']['Path']), tostring(d['Item']['ParentFolder']['Path']), tostring(AffItem['ParentFolder']['Path'])),
+      DestFolder        = tostring(d['DestFolder']['Path']),
+      SizeBytes         = coalesce(toint(d['Item']['SizeInBytes']), 0),
+      Attachments       = coalesce(tostring(d['Item']['Attachments']), tostring(AffItem['Attachments'])),
+      ClientIP          = tostring(d.ClientIP),
+      ClientInfo        = tostring(d.ClientInfoString),
+      ResultStatus      = tostring(d.ResultStatus),
+      CreationTime      = todatetime(d.CreationTime)
+  | project CreationTime, EventType, Actor, MailboxOwner, Subject,
+            InternetMessageId, Folder, DestFolder, SizeBytes, Attachments,
+            ClientIP, ClientInfo, ResultStatus;
+  // Step 4 – Union and order chronologically
+  union SendEvent, RecipientActivity
+  | order by InternetMessageId asc, CreationTime asc
+parameters:
+  - name: startTime
+    type: string
+    description: "Start of the search window in ISO 8601 format (e.g. 2026-04-01T00:00:00)"
+    required: true
+  - name: endTime
+    type: string
+    description: "End of the search window in ISO 8601 format (e.g. 2026-04-02T23:59:59)"
+    required: true
+  - name: subject
+    type: string
+    description: "Email subject keyword to match (partial). Use '*' to skip subject filtering."
+    required: false
+    default: "*"
+  - name: sender
+    type: string
+    description: "Sender UPN or partial email address (e.g. jasonstaple). Use '*' to skip."
+    required: false
+    default: "*"
+  - name: recipient
+    type: string
+    description: "Recipient mailbox UPN or partial email address. Use '*' to return activity across all recipient mailboxes."
+    required: false
+    default: "*"

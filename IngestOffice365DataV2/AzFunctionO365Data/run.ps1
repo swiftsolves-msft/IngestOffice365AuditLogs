@@ -381,7 +381,7 @@ function Get-O365Data{
     }
 
     # Update last run time via app setting
-    $endTime = $currentUTCtime | Get-Date -Format yyyy-MM-ddTHH:mm:ss
+    $endTime = $currentUTCtime | Get-Date -Format yyyy-MM-ddTHH:mm:ss    
     Update-AppSetting -Key "LastExecutionEndTime" -Value $endTime
 }
 
