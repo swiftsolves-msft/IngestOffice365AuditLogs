@@ -316,6 +316,31 @@ function Get-AuthToken {
     return $headerParams 
 }
 
+function Enable-O365Subscription {
+    [cmdletbinding()]
+    Param(
+        [Parameter(Mandatory = $true)][string]$contentType,
+        [Parameter(Mandatory = $true)][psobject]$headerParams,
+        [Parameter(Mandatory = $true)][string]$tenantGuid,
+        [Parameter(Mandatory = $true)][string]$baseUri
+    )
+    $startUri = "$baseUri/api/v1.0/$tenantGuid/activity/feed/subscriptions/start?contentType=$contentType&PublisherIdentifier=$AADAppPublisher"
+    try {
+        $result = Invoke-RestMethod -Method Post -Headers $headerParams -Uri $startUri -Body "{}" -ContentType "application/json" -ErrorAction Stop
+        Write-Host "Subscription for '$contentType' is active (status: $($result.status))."
+    }
+    catch {
+        $errBody = $_.ErrorDetails.Message | ConvertFrom-Json -ErrorAction SilentlyContinue
+        if ($errBody.error.code -eq "AF20024") {
+            # AF20024 = subscription already started — not an error
+            Write-Host "Subscription for '$contentType' already started."
+        } else {
+            Write-Warning "Could not enable subscription for '$contentType': $($_.Exception.Message)"
+            throw
+        }
+    }
+}
+
 function Get-O365Data{
     [cmdletbinding()]
     Param(
@@ -328,18 +353,26 @@ function Get-O365Data{
     $contentTypes = $Office365ContentTypes.split(",")
 
     # API front end for GCC-High
+    $baseUri = $OfficeLoginUri
     if ($OfficeLoginUri.split('.')[2] -eq "us") {
-        $OfficeLoginUri = "https://manage.office365.us"
+        $baseUri = "https://manage.office365.us"
     }
 
     foreach($contentType in $contentTypes){
         $contentType = $contentType.Trim()
-        $listAvailableContentUri = "$OfficeLoginUri/api/v1.0/$tenantGUID/activity/feed/subscriptions/content?contentType=$contentType&PublisherIdentifier=$AADAppPublisher&startTime=$startTime&endTime=$endTime"
+
+        # Ensure the subscription is started before querying content
+        Enable-O365Subscription -contentType $contentType -headerParams $headerParams -tenantGuid $tenantGuid -baseUri $baseUri
+
+        $listAvailableContentUri = "$baseUri/api/v1.0/$tenantGuid/activity/feed/subscriptions/content?contentType=$contentType&PublisherIdentifier=$AADAppPublisher&startTime=$startTime&endTime=$endTime"
         
         Write-Output $listAvailableContentUri
 
+        $nextPage = $true
         do {
-            $contentResult = Invoke-RestMethod -Method GET -Headers $headerParams -Uri $listAvailableContentUri
+            # Use Invoke-WebRequest for all page fetches so we can read the NextPageUri response header
+            $pageResponse = Invoke-WebRequest -Method GET -Headers $headerParams -Uri $listAvailableContentUri -ErrorAction Stop
+            $contentResult = $pageResponse.Content | ConvertFrom-Json
             Write-Output $contentResult.Count
 
             foreach($obj in $contentResult){
@@ -370,10 +403,9 @@ function Get-O365Data{
                 }
             }
 
-            # Pagination
-            $nextPageResult = Invoke-WebRequest -Method GET -Headers $headerParams -Uri $listAvailableContentUri
-            if ($null -ne $nextPageResult.Headers.NextPageUrl) {
-                $listAvailableContentUri = $nextPageResult.Headers.NextPageUrl
+            # Pagination — NextPageUri comes back in the response header (single request now)
+            if ($null -ne $pageResponse.Headers.NextPageUri) {
+                $listAvailableContentUri = $pageResponse.Headers.NextPageUri
             } else {
                 $nextPage = $false
             }
