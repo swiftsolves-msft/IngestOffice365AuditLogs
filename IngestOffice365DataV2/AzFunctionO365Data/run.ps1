@@ -122,6 +122,9 @@ function Send-ToLogAnalytics {
             Write-Host "✅ Sent final batch of $($tempData.Count) records to stream $streamName"
         }
         catch {
+            if (-not [string]::IsNullOrEmpty($_.ErrorDetails.Message)) {
+                Write-Error "DCR ingestion response body: $($_.ErrorDetails.Message)"
+            }
             Write-Error "❌ Failed to send final batch: $($_.Exception.Message)"
             throw
         }
